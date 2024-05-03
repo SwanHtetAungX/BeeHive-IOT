@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bee Hive Data</title>
+    <!-- Bootstrap CSS -->
+    <link
+      href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <!-- Font Awesome for icons -->
+    <link
+      href="https://stackpath.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        background-color: #f7f7d4; /* Light yellow background */
+        padding: 20px;
+        color: #333; /* Dark text for contrast */
+      }
+      .container {
+        background-color: #fff; /* White container background */
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Subtle shadow for depth */
+      }
+      .hive-card {
+        margin-bottom: 30px;
+      }
+      .card {
+        border-color: #e5be01; /* Honey yellow border */
+      }
+      .card-header {
+        background-color: #e5be01; /* Honey yellow header */
+        color: #333; /* Dark text for contrast */
+      }
+      .card-body-icon {
+        color: #e5be01; /* Honey yellow icon */
+        font-size: 2rem;
+        position: absolute;
+        right: 20px;
+        top: -25px;
+        z-index: 0;
+      }
+      .card-body p {
+        margin-bottom: 0.5rem;
+      }
+      .fa {
+        margin-right: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1 class="text-center" style="margin-bottom: 30px">Bee Hive Data 🐝</h1>
+      <div class="row" id="hive-cards">
+        <!-- Hive cards will be inserted here -->
+      </div>
+    </div>
+
+    <canvas id="temperatureChart" width="400" height="200"></canvas>
+
+    <canvas id="climateChart" width="400" height="200"></canvas>
+
+    <script>
+      fetch(
+        "https://f4p4g4whpe.execute-api.us-east-1.amazonaws.com/default/FetchDataFromDynamoDB"
+      )
+        .then((response) => response.json())
+        .then((data) => {
+          const hiveCardsContainer = document.getElementById("hive-cards");
+
+          // Group data by bee_hive_id and get the latest entry for each id
+          const latestDataByHiveId = data.reduce((acc, item) => {
+            const existingItem = acc[item.bee_hive_id];
+            if (
+              !existingItem ||
+              new Date(item.timestamp) > new Date(existingItem.timestamp)
+            ) {
+              acc[item.bee_hive_id] = item;
+            }
+            return acc;
+          }, {});
+
+          // Convert the object back into an array
+          const latestData = Object.values(latestDataByHiveId);
+
+          latestData.forEach((item) => {
+            const card = document.createElement("div");
+            card.classList.add("col-md-4", "hive-card");
+            card.innerHTML = `
+                <div class="card">
+                    <div class="card-header">
+                        Bee Hive ${item.bee_hive_id}
+                        <i class="fa fa-cubes card-body-icon"></i>
+                    </div>
+                    <div class="card-body">
+                        <p><i class="fa fa-eye"></i> Image Sensor: ${item.imageSensor}</p>
+                        <p><i class="fa fa-microphone"></i> Acoustic Sensor: ${item.acousticSensor}</p>
+                        <p><i class="fa fa-tint"></i> Humidity: ${item.humidity}</p>
+                        <p><i class="fa fa-thermometer-half"></i> Temperature: ${item.temperature}</p>
+                    </div>
+                </div>
+            `;
+            hiveCardsContainer.appendChild(card);
+          });
+        })
+        .catch((error) => console.error("Error fetching data:", error));
+
+      fetch(
+        "https://eyq55i5b1i.execute-api.us-east-1.amazonaws.com/default/AvgTemperature"
+      )
+        .then((response) => response.json())
+        .then((data) => {
+          console.log(data);
+          const ctx = document
+            .getElementById("temperatureChart")
+            .getContext("2d");
+          const chart = new Chart(ctx, {
+            type: "bar",
+            data: {
+              labels: data.map((item) => `Hive ${item.bee_hive_id}`),
+              datasets: [
+                {
+                  label: "Average Temperature (°C)",
+                  data: data.map((item) => item.avg_temperature),
+                  backgroundColor: "rgba(255, 206, 86, 0.2)",
+                  borderColor: "rgba(255, 206, 86, 1)",
+                  borderWidth: 1,
+                },
+              ],
+            },
+            options: {
+              scales: {
+                yAxes: [
+                  {
+                    ticks: {
+                      beginAtZero: true,
+                    },
+                  },
+                ],
+              },
+            },
+          });
+        })
+        .catch((error) => console.error("Error fetching data:", error));
+
+      fetch(
+        "https://vc52w2kfnl.execute-api.us-east-1.amazonaws.com/default/AvgTempNHumid"
+      )
+        .then((response) => response.json())
+        .then((data) => {
+          const ctx = document.getElementById("climateChart").getContext("2d");
+          const chart = new Chart(ctx, {
+            type: "line",
+            data: {
+              labels: data.map((item) => item.date),
+              datasets: [
+                {
+                  label: "Average Temperature (°C)",
+                  data: data.map((item) => item.avg_temperature),
+                  borderColor: "rgba(255, 99, 132, 1)",
+                  backgroundColor: "rgba(255, 99, 132, 0.2)",
+                  fill: false,
+                },
+                {
+                  label: "Average Humidity (%)",
+                  data: data.map((item) => item.avg_humidity),
+                  borderColor: "rgba(54, 162, 235, 1)",
+                  backgroundColor: "rgba(54, 162, 235, 0.2)",
+                  fill: false,
+                },
+              ],
+            },
+            options: {
+              scales: {
+                y: {
+                  beginAtZero: false,
+                },
+              },
+              plugins: {
+                title: {
+                  display: true,
+                  text: "Average Temperature and Humidity",
+                },
+              },
+            },
+          });
+        })
+        .catch((error) => console.error("Error fetching data:", error));
+    </script>
+
+    <!-- Bootstrap JS and its dependencies -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.2/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  </body>
+</html>
